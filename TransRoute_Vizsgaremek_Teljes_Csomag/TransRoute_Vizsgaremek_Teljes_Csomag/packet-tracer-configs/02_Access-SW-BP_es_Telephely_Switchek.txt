@@ -1,0 +1,105 @@
+! ============================================================
+! ACCESS-SW-BP, SW-GYOR, SW-SZEGED (2960-24TT)
+! Felelős: Háda Patrik
+! ============================================================
+
+! --- ACCESS-SW-BP (Budapest) ---
+enable
+configure terminal
+hostname Access-SW-BP
+vlan 10
+ name Management
+vlan 20
+ name Servers
+vlan 30
+ name Office-LAN
+vlan 40
+ name WiFi
+exit
+
+interface range FastEthernet0/1 - 2
+ switchport mode trunk
+ switchport trunk allowed vlan 10,20,30,40
+ no shutdown
+exit
+
+! Menedzsment PC (VLAN 10)
+interface FastEthernet0/5
+ switchport mode access
+ switchport access vlan 10
+ spanning-tree portfast
+ no shutdown
+exit
+
+! Irodai PC-k (VLAN 30)
+interface range FastEthernet0/10 - 15
+ switchport mode access
+ switchport access vlan 30
+ spanning-tree portfast
+ no shutdown
+exit
+
+! WiFi Access Point (VLAN 40)
+interface FastEthernet0/20
+ switchport mode access
+ switchport access vlan 40
+ spanning-tree portfast
+ no shutdown
+exit
+end
+write memory
+
+! --- SW-GYOR (Győr Raktár) ---
+enable
+configure terminal
+hostname SW-GYOR
+vlan 110
+ name Gyor-Warehouse-LAN
+vlan 120
+ name Gyor-Barcode-WiFi
+exit
+
+interface GigabitEthernet0/1
+ switchport mode trunk
+ switchport trunk allowed vlan 110,120
+ no shutdown
+exit
+
+interface range FastEthernet0/1 - 10
+ switchport mode access
+ switchport access vlan 110
+ spanning-tree portfast
+ no shutdown
+exit
+
+interface range FastEthernet0/11 - 15
+ switchport mode access
+ switchport access vlan 120
+ spanning-tree portfast
+ no shutdown
+exit
+end
+write memory
+
+! --- SW-SZEGED (Szeged Fiókiroda) ---
+enable
+configure terminal
+hostname SW-SZEGED
+vlan 210
+ name Szeged-Office-LAN
+exit
+
+interface GigabitEthernet0/1
+ switchport mode trunk
+ switchport trunk allowed vlan 210
+ no shutdown
+exit
+
+interface range FastEthernet0/1 - 15
+ switchport mode access
+ switchport access vlan 210
+ spanning-tree portfast
+ no shutdown
+exit
+end
+write memory

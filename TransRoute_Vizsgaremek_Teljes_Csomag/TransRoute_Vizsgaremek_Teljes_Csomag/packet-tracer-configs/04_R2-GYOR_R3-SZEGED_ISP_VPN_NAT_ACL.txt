@@ -1,0 +1,151 @@
+! ============================================================
+! R2-GYOR, R3-SZEGED & ISP-RTR (2911)
+! Felelős: Rózsa Kálmán Roland (WAN/NAT/Routing) & Háda Patrik (VPN/ACL)
+! ============================================================
+
+! --- ISP-RTR (WAN / Internet Szimuláció) ---
+enable
+configure terminal
+hostname ISP-RTR
+ipv6 unicast-routing
+
+! ASA-BP Outside felé
+interface GigabitEthernet0/0
+ ip address 203.0.113.1 255.255.255.248
+ ipv6 address 2001:DB8:FFFF:100::1/64
+ no shutdown
+exit
+
+! R2-GYOR WAN felé
+interface GigabitEthernet0/1
+ ip address 172.16.1.1 255.255.255.252
+ ipv6 address 2001:DB8:FFFF:1::1/64
+ no shutdown
+exit
+
+! R3-SZEGED WAN felé
+interface GigabitEthernet0/2
+ ip address 172.16.1.5 255.255.255.252
+ ipv6 address 2001:DB8:FFFF:2::1/64
+ no shutdown
+exit
+end
+write memory
+
+! --- R2-GYOR (Győr Logisztikai Raktár + Site-to-Site VPN + PAT) ---
+enable
+configure terminal
+hostname R2-GYOR
+ipv6 unicast-routing
+
+interface GigabitEthernet0/0
+ no shutdown
+exit
+
+interface GigabitEthernet0/0.110
+ encapsulation dot1Q 110
+ ip address 10.20.10.1 255.255.255.128
+ ipv6 address 2001:DB8:200:10::1/64
+ ip nat inside
+exit
+
+interface GigabitEthernet0/0.120
+ encapsulation dot1Q 120
+ ip address 10.20.20.1 255.255.255.128
+ ipv6 address 2001:DB8:200:20::1/64
+ ip nat inside
+exit
+
+interface GigabitEthernet0/1
+ ip address 172.16.1.2 255.255.255.252
+ ipv6 address 2001:DB8:FFFF:1::2/64
+ ip nat outside
+ no shutdown
+exit
+
+! Statikus alapértelmezett útvonal az ISP felé
+ip route 0.0.0.0 0.0.0.0 172.16.1.1
+ipv6 route ::/0 2001:DB8:FFFF:1::1
+
+! PAT (Dinamikus túlterheléses NAT) + ACL
+access-list 100 deny ip 10.20.0.0 0.0.255.255 10.10.0.0 0.0.255.255
+access-list 100 permit ip 10.20.0.0 0.0.255.255 any
+ip nat inside source list 100 interface GigabitEthernet0/1 overload
+
+! Site-to-Site IPsec VPN Budapest (203.0.113.2) felé
+crypto isakmp policy 10
+ encr aes
+ hash sha
+ authentication pre-share
+ group 2
+exit
+crypto isakmp key TransRouteVPN2026! address 203.0.113.2
+
+crypto ipsec transform-set TS-TR esp-aes esp-sha-hmac
+access-list 110 permit ip 10.20.0.0 0.0.255.255 10.10.0.0 0.0.255.255
+
+crypto map CMAP-GYOR 10 ipsec-isakmp
+ set peer 203.0.113.2
+ set transform-set TS-TR
+ match address 110
+exit
+
+interface GigabitEthernet0/1
+ crypto map CMAP-GYOR
+exit
+end
+write memory
+
+! --- R3-SZEGED (Szeged Fiókiroda + Site-to-Site VPN + PAT) ---
+enable
+configure terminal
+hostname R3-SZEGED
+ipv6 unicast-routing
+
+interface GigabitEthernet0/0
+ no shutdown
+exit
+
+interface GigabitEthernet0/0.210
+ encapsulation dot1Q 210
+ ip address 10.30.10.1 255.255.255.128
+ ipv6 address 2001:DB8:300:10::1/64
+ ip nat inside
+exit
+
+interface GigabitEthernet0/1
+ ip address 172.16.1.6 255.255.255.252
+ ipv6 address 2001:DB8:FFFF:2::2/64
+ ip nat outside
+ no shutdown
+exit
+
+ip route 0.0.0.0 0.0.0.0 172.16.1.5
+ipv6 route ::/0 2001:DB8:FFFF:2::1
+
+access-list 100 deny ip 10.30.0.0 0.0.255.255 10.10.0.0 0.0.255.255
+access-list 100 permit ip 10.30.0.0 0.0.255.255 any
+ip nat inside source list 100 interface GigabitEthernet0/1 overload
+
+crypto isakmp policy 10
+ encr aes
+ hash sha
+ authentication pre-share
+ group 2
+exit
+crypto isakmp key TransRouteVPN2026! address 203.0.113.2
+
+crypto ipsec transform-set TS-TR esp-aes esp-sha-hmac
+access-list 110 permit ip 10.30.0.0 0.0.255.255 10.10.0.0 0.0.255.255
+
+crypto map CMAP-SZEGED 10 ipsec-isakmp
+ set peer 203.0.113.2
+ set transform-set TS-TR
+ match address 110
+exit
+
+interface GigabitEthernet0/1
+ crypto map CMAP-SZEGED
+exit
+end
+write memory

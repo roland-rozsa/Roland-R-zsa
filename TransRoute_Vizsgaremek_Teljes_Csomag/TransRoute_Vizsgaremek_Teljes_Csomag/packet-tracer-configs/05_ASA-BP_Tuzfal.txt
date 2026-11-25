@@ -1,0 +1,49 @@
+! ============================================================
+! ASA-BP (Cisco ASA 5506-X) - HARDVERES TŰZFAL & NAT & VPN
+! Felelős: Háda Patrik & Rózsa Kálmán Roland
+! ============================================================
+enable
+configure terminal
+hostname ASA-BP
+
+! Külső (Internet/WAN) interfész
+interface GigabitEthernet1/1
+ nameif outside
+ security-level 0
+ ip address 203.0.113.2 255.255.255.248
+ no shutdown
+exit
+
+! Belső (Budapest LAN/Core) interfész
+interface GigabitEthernet1/2
+ nameif inside
+ security-level 100
+ ip address 10.10.254.2 255.255.255.252
+ no shutdown
+exit
+
+! Statikus NAT (Belső Linux HTTPS Webportál publikálása)
+object network WEB-SERVER
+ host 10.10.20.20
+ nat (inside,outside) static 203.0.113.3
+
+! Dinamikus PAT (Belső hálózatok kijuttatása az internetre)
+object network INSIDE-NET
+ subnet 10.10.0.0 255.255.0.0
+ nat (inside,outside) dynamic interface
+
+! Alapértelmezett útvonal az ISP felé és belső útvonalak R1-BP1 felé
+route outside 0.0.0.0 0.0.0.0 203.0.113.1 1
+route inside 10.10.0.0 255.255.0.0 10.10.254.1 1
+
+! Tűzfal szabályok (ACL - HTTPS engedélyezése kívülről a webportálra, ICMP/HTTP/HTTPS kifelé)
+access-list OUTSIDE-IN extended permit tcp any host 10.10.20.20 eq 443
+access-list OUTSIDE-IN extended permit icmp any any
+access-group OUTSIDE-IN in interface outside
+
+policy-map global_policy
+ class inspection_default
+  inspect icmp
+exit
+end
+write memory
